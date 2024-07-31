@@ -1,7 +1,0 @@
-things to add:
-- figure out github stuff
-- zoom and navigation
-- name of the buttons when hovering above buttons
-- save graph without popups
-- automatic repositioning of icons
-- brief documentation
