@@ -36,9 +36,30 @@ EXTENSION = ".gph"
 WRONG_FORMAT_MSG = "Wrong format", f"This file does not match the required file format ({EXTENSION}).\nDo you want to continue?"
 FAILED_IMPORT_MSG = "Uh oh!", "Failed to import graph."
 
+# Button descriptions
+VERT_DESC = "Add, remove, and drag vertices"
+EDGE_DESC = "Add and remove edges"
+TEXT_DESC = "Label vertices"
+ZOOM_DESC = "Zoom and scale graph"
+SAVE_DESC = "Save graph"
+LOAD_DESC = "Load graph"
+PHOTO_DESC = "Zoom and scale graph"
+
+# Button paths
+VERT_PATH = "icons\\vertex mode button.png"
+EDGE_PATH = "icons\\edge mode button.png"
+TEXT_PATH = "icons\\text mode button.png"
+ZOOM_PATH = "icons\\navigation mode button.png"
+SAVE_PATH = "icons\\save button.png"
+LOAD_PATH = "icons\\load button.png"
+PHOTO_PATH = "icons\\screenshot button.png"
+
+
+def clamp(value, min_val, max_val):
+    return min(max(value, min_val), max_val)
 
 class Button:
-    def __init__(self, x, y, img_name, callback):
+    def __init__(self, x, y, img_name, description, callback):
         self.pos = pygame.Vector2(x, y)  # Left top corner
         self.img = pygame.image.load(img_name)  # Button's image
         self.callback = callback  # Function to call on click
@@ -48,10 +69,18 @@ class Button:
         self.inflated = False  # Are we hovering on it?
         self.timer = 0  # Animation timer for hovering
 
+        self.desc_surface = FONT.render(description, True, (0, 0, 0))  # Description rendered
+        self.desc_rect = self.desc_surface.get_rect()  # Description rectangle
+
     def draw(self, surface):
         # Blit image with scaling taken into account
         img = pygame.transform.smoothscale(self.img, (self.rect.width, self.rect.height))
         surface.blit(img, self.rect.topleft)
+
+        if self.inflated:
+            x = clamp(self.rect.centerx - self.desc_rect.width // 2, 0, SCREEN_WIDTH - self.desc_rect.width)
+            y = self.rect.top - self.desc_rect.height if self.rect.top > self.desc_rect.height else self.rect.bottom
+            surface.blit(self.desc_surface, (x, y))
 
     def process_event(self, event):
         # Returns True if clicked otherwise False
@@ -125,7 +154,9 @@ class Graph:
         self.vertices.append(Vertex("", pygame.Vector2(x, y)))
 
     def add_edge(self, idx1, idx2):
-        self.edges.append((idx1, idx2))
+        # Pay attention when you add directed edges
+        if (idx1, idx2) not in self.edges and (idx2, idx1) not in self.edges:
+            self.edges.append((idx1, idx2))
 
     def move_vertex_to(self, idx, x, y):
         self.vertices[idx].pos = pygame.Vector2(x, y)
@@ -151,7 +182,7 @@ class Graph:
 
     def get_vertex_at(self, x, y):
         for idx, vertex in enumerate(self.vertices):
-            if vertex.pos.distance_squared_to((x, y)) < VERTEX_RADIUS * VERTEX_RADIUS:
+            if vertex.visual_pos.distance_squared_to((x, y)) < VERTEX_RADIUS * VERTEX_RADIUS:
                 return idx
         return -1
 
@@ -159,7 +190,7 @@ class Graph:
         point = pygame.Vector2(x, y)
         
         for idx, edge in enumerate(self.edges):
-            a, b = self.vertices[edge[0]].pos, self.vertices[edge[1]].pos
+            a, b = self.vertices[edge[0]].visual_pos, self.vertices[edge[1]].visual_pos
 
             # Calculate the distance of point from the edge
             displ = point - a
@@ -242,15 +273,15 @@ class App:
 
     def init_buttons(self):
         # TODO: make dynamic repositioning
-        self.buttons.add_button(Button(30, 815, "icons\\vertex mode button.png", lambda: self.change_state(App.VERTEX_MODE)))
-        self.buttons.add_button(Button(110, 815, "icons\\edge mode button.png", lambda: self.change_state(App.EDGE_MODE)))
-        self.buttons.add_button(Button(190, 815, "icons\\text mode button.png", lambda: self.change_state(App.TEXT_MODE)))
-        self.buttons.add_button(Button(270, 815, "icons\\navigation mode button.png", lambda: self.change_state(App.NAVIGATION_MODE)))
+        self.buttons.add_button(Button(30, 815, VERT_PATH, VERT_DESC, lambda: self.change_state(App.VERTEX_MODE)))
+        self.buttons.add_button(Button(110, 815, EDGE_PATH, EDGE_DESC, lambda: self.change_state(App.EDGE_MODE)))
+        self.buttons.add_button(Button(190, 815, TEXT_PATH, TEXT_DESC, lambda: self.change_state(App.TEXT_MODE)))
+        self.buttons.add_button(Button(270, 815, ZOOM_PATH, ZOOM_DESC, lambda: self.change_state(App.NAVIGATION_MODE)))
 
-        self.buttons.add_button(Button(30, 20, "icons\\save button.png", lambda: self.save_file()))
-        self.buttons.add_button(Button(110, 20, "icons\\load button.png", lambda: self.load_file()))
+        self.buttons.add_button(Button(30, 20, SAVE_PATH, SAVE_DESC, lambda: self.save_file()))
+        self.buttons.add_button(Button(110, 20, LOAD_PATH, LOAD_DESC, lambda: self.load_file()))
 
-        self.buttons.add_button(Button(1515, 815, "icons\\screenshot button.png", lambda: self.screenshot()))
+        self.buttons.add_button(Button(1515, 815, ZOOM_PATH, PHOTO_DESC, lambda: self.screenshot()))
 
     def scale_zoom(self, intensity):
         zoom_center = pygame.mouse.get_pos()
@@ -401,7 +432,7 @@ class App:
         # As if you're stretching it from one vertex to another
         if self.state == App.EDGE_MODE and self.selected != -1:
             mouse_pos = pygame.mouse.get_pos()
-            pygame.draw.line(self.screen, EDGE_COLOR, self.graph.vertices[self.selected].pos, mouse_pos, EDGE_THICKNESS)
+            pygame.draw.line(self.screen, EDGE_COLOR, self.graph.vertices[self.selected].visual_pos, mouse_pos, EDGE_THICKNESS)
 
         # Draw the graph with specified selected vertex
         self.graph.draw(self.screen, selected=self.selected)
