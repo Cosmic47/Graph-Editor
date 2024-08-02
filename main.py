@@ -14,7 +14,7 @@ pygame.font.init()
 # Pygame related config
 SCREEN_SIZE = SCREEN_WIDTH, SCREEN_HEIGHT = 1600, 900
 FPS = 60
-LMB, RMB = 1, 3
+LMB, RMB, SCROLL_BTN = 1, 3, 5
 
 # Graph UI config
 BACKGR_COLOR = 255, 255, 255
@@ -29,8 +29,9 @@ FONT = pygame.font.SysFont("Consolas", 20)
 # General UI config
 HOVER_SPEED = 6
 MAX_SCALE = 1.2
+SENSITIVITY = 3
 
-# IDK
+# File-related stuff
 EXTENSION = ".gph"
 WRONG_FORMAT_MSG = "Wrong format", f"This file does not match the required file format ({EXTENSION}).\nDo you want to continue?"
 FAILED_IMPORT_MSG = "Uh oh!", "Failed to import graph."
@@ -100,17 +101,20 @@ class Vertex:
     def __init__(self, label, pos):
         self.label = label
         self.pos = pos
+        self.visual_pos = pos
 
     def draw(self, surface, selected=False):
+        pos = self.visual_pos
+        
         # Draw all vertices (selected one has a doubled radius)
         radius = VERTEX_RADIUS * SELECTED_SIZE_INCREASE if selected else VERTEX_RADIUS
-        pygame.draw.circle(surface, VERTEX_COLOR, self.pos, radius)
+        pygame.draw.circle(surface, VERTEX_COLOR, pos, radius)
 
         # Draw name of the vertex directly above it
         label_surface = FONT.render(self.label, True, VERTEX_COLOR)
         label_rect = label_surface.get_rect()
         offset = pygame.Vector2(0, label_rect.height + VERTEX_RADIUS / 2) + label_rect.center
-        surface.blit(label_surface, self.pos - offset)
+        surface.blit(label_surface, pos - offset)
 
 class Graph:
     def __init__(self):
@@ -174,9 +178,11 @@ class Graph:
 
         return -1            
 
-    def draw(self, surface, zoom, selected=-1):
+    def draw(self, surface, selected=-1):
         for edge in self.edges:
-            pygame.draw.line(surface, EDGE_COLOR, self.vertices[edge[0]].pos, self.vertices[edge[1]].pos, EDGE_THICKNESS)
+            start_pos = self.vertices[edge[0]].visual_pos
+            end_pos = self.vertices[edge[1]].visual_pos
+            pygame.draw.line(surface, EDGE_COLOR, start_pos, end_pos, EDGE_THICKNESS)
         
         for idx, vertex in enumerate(self.vertices):
             self.vertices[idx].draw(surface, selected == idx)
@@ -208,8 +214,16 @@ class Graph:
 
         return graph
 
+    def shift(self, displacement):  # purely visual displacement
+        for vert in self.vertices:
+            vert.visual_pos += displacement
+
+    def scale(self, scale, center):
+        for vert in self.vertices:
+            vert.visual_pos = (vert.visual_pos - center) * scale + center
+
 class App:
-    VERTEX_MODE, EDGE_MODE, TEXT_MODE = range(3)  # App states
+    VERTEX_MODE, EDGE_MODE, TEXT_MODE, NAVIGATION_MODE = range(4)  # App states
 
     def __init__(self):
         self.state = App.VERTEX_MODE
@@ -217,28 +231,39 @@ class App:
         self.selected = -1  # Index of a vertex we're grabbing
         
         self.screen = pygame.display.set_mode(SCREEN_SIZE)
+        self.dt = 1 / FPS
 
         self.buttons = ButtonManager()
         self.init_buttons()
 
         self.graph = Graph()
         self.zoom = 1
+        self.offset = pygame.Vector2(0, 0)
 
     def init_buttons(self):
         # TODO: make dynamic repositioning
         self.buttons.add_button(Button(30, 815, "icons\\vertex mode button.png", lambda: self.change_state(App.VERTEX_MODE)))
         self.buttons.add_button(Button(110, 815, "icons\\edge mode button.png", lambda: self.change_state(App.EDGE_MODE)))
         self.buttons.add_button(Button(190, 815, "icons\\text mode button.png", lambda: self.change_state(App.TEXT_MODE)))
+        self.buttons.add_button(Button(270, 815, "icons\\navigation mode button.png", lambda: self.change_state(App.NAVIGATION_MODE)))
 
         self.buttons.add_button(Button(30, 20, "icons\\save button.png", lambda: self.save_file()))
         self.buttons.add_button(Button(110, 20, "icons\\load button.png", lambda: self.load_file()))
 
         self.buttons.add_button(Button(1515, 815, "icons\\screenshot button.png", lambda: self.screenshot()))
 
+    def scale_zoom(self, intensity):
+        zoom_center = pygame.mouse.get_pos()
+        diff = self.dt * intensity * SENSITIVITY
+
+        if self.zoom + diff > 0.1:
+            self.graph.scale((self.zoom + diff) / self.zoom, zoom_center)
+            self.zoom += diff
+
     def screenshot(self):
         surface = pygame.Surface(SCREEN_SIZE)
         surface.fill(BACKGR_COLOR)
-        self.graph.draw(surface, self.zoom, selected=self.selected)
+        self.graph.draw(surface, selected=self.selected)
         filename = "screenshot.png"
         i = 1
         while os.path.exists(filename):
@@ -329,6 +354,13 @@ class App:
             if clicked_idx != -1:
                 self.selected = clicked_idx
 
+    def process_mouse_in_navigation_mode(self, event):
+        if event.type == pygame.MOUSEMOTION and pygame.mouse.get_pressed()[0]:
+            rel_x, rel_y = event.rel
+            self.graph.shift(pygame.Vector2(rel_x, rel_y))
+        if event.type == pygame.MOUSEWHEEL:
+            self.scale_zoom(event.y)
+
     def process_keys_in_text_mode(self, event):
         # Do nothing if not selected
         if self.selected == -1:
@@ -336,6 +368,7 @@ class App:
 
         label = self.graph.vertices[self.selected].label
 
+        # Edit label
         if event.key == pygame.K_BACKSPACE:
             label = label[:-1]
         elif event.key == pygame.K_RETURN:
@@ -353,6 +386,8 @@ class App:
             self.process_mouse_in_edge_mode(event)
         elif self.state == App.TEXT_MODE:
             self.process_mouse_in_text_mode(event)
+        elif self.state == App.NAVIGATION_MODE:
+            self.process_mouse_in_navigation_mode(event)
 
     def change_state(self, new_state):
         self.selected = -1  # Deselect whenever state is changed
@@ -369,7 +404,7 @@ class App:
             pygame.draw.line(self.screen, EDGE_COLOR, self.graph.vertices[self.selected].pos, mouse_pos, EDGE_THICKNESS)
 
         # Draw the graph with specified selected vertex
-        self.graph.draw(self.screen, self.zoom, selected=self.selected)
+        self.graph.draw(self.screen, selected=self.selected)
 
         # Draw buttons
         self.buttons.draw(self.screen)
@@ -377,7 +412,7 @@ class App:
         pygame.display.update()
 
     def run(self):
-        dt = 1 / FPS
+        self.dt = 1 / FPS
         clock = pygame.time.Clock()
         
         while True:
@@ -392,16 +427,17 @@ class App:
                     self.process_keys_in_text_mode(event)
 
                 # Processing mouse events by UI elements and, if no click happened, by graph elements
-                elif event.type in [pygame.MOUSEBUTTONUP, pygame.MOUSEBUTTONDOWN, pygame.MOUSEMOTION]:
+                clicked_any = False
+                if event.type in [pygame.MOUSEBUTTONUP, pygame.MOUSEBUTTONDOWN, pygame.MOUSEMOTION]:
                     clicked_any = self.buttons.process_event(event)
-                    if not clicked_any:
-                        self.handle_graph_mouse_interactions(event)
+                if not clicked_any or event.type == pygame.MOUSEWHEEL:
+                    self.handle_graph_mouse_interactions(event)                
 
-            self.buttons.update(dt)
+            self.buttons.update(self.dt)
             
             self.draw()
             
-            dt = clock.tick(FPS) / 1000   
+            self.dt = clock.tick(FPS) / 1000   
 
 if __name__ == "__main__":
     pygame.init()
