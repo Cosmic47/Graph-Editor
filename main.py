@@ -44,7 +44,7 @@ TEXT_DESC = "Label vertices"
 ZOOM_DESC = "Zoom and scale graph"
 SAVE_DESC = "Save graph"
 LOAD_DESC = "Load graph"
-PHOTO_DESC = "Zoom and scale graph"
+PHOTO_DESC = "Take screenshot"
 
 # Button paths
 VERT_PATH = "icons\\vertex mode button.png"
@@ -160,7 +160,7 @@ class Graph:
             self.edges.append((idx1, idx2))
 
     def move_vertex_to(self, idx, x, y):
-        self.vertices[idx].pos = pygame.Vector2(x, y)
+        self.vertices[idx].visual_pos = self.vertices[idx].pos = pygame.Vector2(x, y)
 
     def delete_vertex(self, idx):
         del self.vertices[idx]
@@ -282,7 +282,7 @@ class App:
         self.buttons.add_button(Button(30, 20, SAVE_PATH, SAVE_DESC, lambda: self.save_file()))
         self.buttons.add_button(Button(110, 20, LOAD_PATH, LOAD_DESC, lambda: self.load_file()))
 
-        self.buttons.add_button(Button(1515, 815, ZOOM_PATH, PHOTO_DESC, lambda: self.screenshot()))
+        self.buttons.add_button(Button(1515, 815, PHOTO_PATH, PHOTO_DESC, lambda: self.screenshot()))
 
     def scale_zoom(self, intensity):
         zoom_center = pygame.mouse.get_pos()
