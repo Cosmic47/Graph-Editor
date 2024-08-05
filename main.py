@@ -25,11 +25,12 @@ EDGE_SELECT_SCALE = 3
 VERTEX_COLOR = 0, 0, 0
 EDGE_COLOR = 120, 120, 120
 FONT = pygame.font.SysFont("Consolas", 20)
+DESC_FONT = pygame.font.SysFont("Consolas", 30)
 
 # General UI config
 HOVER_SPEED = 6
 MAX_SCALE = 1.2
-SENSITIVITY = 3
+SENSITIVITY = 5
 
 # File-related stuff
 EXTENSION = ".gph"
@@ -69,7 +70,7 @@ class Button:
         self.inflated = False  # Are we hovering on it?
         self.timer = 0  # Animation timer for hovering
 
-        self.desc_surface = FONT.render(description, True, (0, 0, 0))  # Description rendered
+        self.desc_surface = DESC_FONT.render(description, True, (0, 0, 0))  # Description rendered
         self.desc_rect = self.desc_surface.get_rect()  # Description rectangle
 
     def draw(self, surface):
@@ -285,11 +286,12 @@ class App:
 
     def scale_zoom(self, intensity):
         zoom_center = pygame.mouse.get_pos()
-        diff = self.dt * intensity * SENSITIVITY
+        diff = self.dt * SENSITIVITY * intensity
 
         if self.zoom + diff > 0.1:
-            self.graph.scale((self.zoom + diff) / self.zoom, zoom_center)
-            self.zoom += diff
+            new_zoom = self.zoom + diff
+            self.graph.scale(new_zoom / self.zoom, zoom_center)
+            self.zoom = new_zoom
 
     def screenshot(self):
         surface = pygame.Surface(SCREEN_SIZE)
